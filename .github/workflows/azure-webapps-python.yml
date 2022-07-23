@@ -20,7 +20,7 @@
 name: Build and deploy Python app to Azure Web App
 
 env:
-  AZURE_WEBAPP_NAME: your-app-name  # set this to the name of your Azure Web App
+  AZURE_WEBAPP_NAME: calculator-app  # set this to the name of your Azure Web App
   PYTHON_VERSION: '3.8'              # set this to the Python version to use
 
 on:
@@ -58,7 +58,7 @@ jobs:
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v3
         with:
-          name: python-app
+          name: calculator-app
           path: |
             . 
             !venv/
@@ -76,7 +76,7 @@ jobs:
       - name: Download artifact from build job
         uses: actions/download-artifact@v3
         with:
-          name: python-app
+          name: calculator-app
           path: .
           
       - name: 'Deploy to Azure Web App'
