@@ -1,23 +1,8 @@
-# This workflow will build and push a Python application to an Azure Web App when a commit is pushed to your default branch.
-#
-# This workflow assumes you have already created the target Azure App Service web app.
-# For instructions see https://docs.microsoft.com/en-us/azure/app-service/quickstart-python?tabs=bash&pivots=python-framework-flask
-#
-# To configure this workflow:
-#
-# 1. Download the Publish Profile for your Azure Web App. You can download this file from the Overview page of your Web App in the Azure Portal.
-#    For more information: https://docs.microsoft.com/en-us/azure/app-service/deploy-github-actions?tabs=applevel#generate-deployment-credentials
-#
-# 2. Create a secret in your repository named AZURE_WEBAPP_PUBLISH_PROFILE, paste the publish profile contents as the value of the secret.
-#    For instructions on obtaining the publish profile see: https://docs.microsoft.com/azure/app-service/deploy-github-actions#configure-the-github-secret
-#
-# 3. Change the value for the AZURE_WEBAPP_NAME. Optionally, change the PYTHON_VERSION environment variables below.
-#
-# For more information on GitHub Actions for Azure: https://github.com/Azure/Actions
-# For more information on the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# For more samples to get started with GitHub Action workflows to deploy to Azure: https://github.com/Azure/actions-workflow-samples
-name: Build and Deploy Python calculator-app to Azure
-
+name: Build and Deploy Python app to Azure
+on:
+  push:
+    branches:
+      - master
 
 env:
   AZURE_WEBAPP_NAME: "calculator-app-azure"    # set this to your application's name
@@ -29,74 +14,141 @@ env:
   APPINSIGHTLOCATION: "South Central US"
   SKU: "S1 Standard"
 
-on:
-  push:
-    branches:
-      - "main"
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
 jobs:
-  build:
+  Build:
     name: Build and Run tests
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v3
+    - uses: actions/checkout@v2
+    - name: Use Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Set up Python version
-      - name: Use Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+    - name: Install Dependancies
+      continue-on-error: false
+      run: |
+        pip install -r requirements.txt
+    - name: Pytest
+      continue-on-error: false
+      run: |
+        mkdir testresults
+        pip install pytest && pytest Tests/unit_tests --junitxml=./testresults/test-results.xml && pip install pycmd && py.cleanup Tests/
+    # Uploading unit test results to artifact store
+    - name: Upload unit test results to Artifact
+      continue-on-error: false
+      uses: actions/upload-artifact@v2
+      with:
+        name: UnitTestResults
+        path: ./testresults/test-results.xml
 
-      - name: Create and start virtual environment
-        run: |
-          python -m venv venv
-          source venv/bin/activate
+    - name: Building web app
+      uses: azure/appservice-build@v2-beta
+      with:
+          source-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+          output-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-        
-      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
-      
-      - name: Upload artifact for deployment jobs
-        uses: actions/upload-artifact@v3
-        with:
-          name: calculator-app
-          path: |
-            . 
-            !venv/
+    - name: Creating artifact directories
+      run: |
+        mkdir buildartifacts
+        mkdir testartifacts
+        mkdir deploymenttemplates
+    # Archive build artifact
+    - name: Archive Application
+      run: |
+       zip -qq -r ./buildartifacts/Application.zip ./Application
+    # Uploading application to artifact store
+    - name: Upload Application to Build Artifact
+      continue-on-error: false
+      uses: actions/upload-artifact@v2
+      with:
+        name: buildartifacts
+        path: buildartifacts
 
-  deploy:
-    permissions:
-      contents: none
+    # Archive Arm template
+    - name: Archive ArmTemplates
+      run: |
+        zip -qq -r ./deploymenttemplates/ArmTemplates.zip ./ArmTemplates
+    # Uploading Arm Template to artifact store
+    - name: Upload Arm templates to Artifact
+      continue-on-error: false
+      uses: actions/upload-artifact@v2
+      with:
+        name: deploymenttemplates
+        path: deploymenttemplates
+
+  Deploy:
+    name: Deploy to azure web app
+    needs: Build
     runs-on: ubuntu-latest
-    needs: build
-    environment:
-      name: 'Development'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-
     steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v3
-        with:
-          name: calculator-app
-          path: .
-          
-      - name: 'Deploy to Azure Web App'
-        id: deploy-to-webapp
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          
-      # Azure Login
-      - name: Azure Login
-        uses: azure/login@v1
-     
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+    # Downloading build artifact
+    - name: Download Build Artifact
+      uses: actions/download-artifact@v2
+      continue-on-error: false
+      with:
+        name: buildartifacts
+        path: buildartifacts
+
+    # Unzipping build artifacts
+    - name: Unzipping Build Artifact
+      run: |
+        unzip -qq ./buildartifacts/Application.zip -d .
+  # Downloading Arm Template
+    - name: Download Arm Template
+      uses: actions/download-artifact@v2
+      continue-on-error: false
+      with:
+        name: deploymenttemplates
+        path: deploymenttemplates
+
+    # Unzipping Arm Template directory
+    - name: Unzipping ARM template
+      run: |
+       unzip -qq ./deploymenttemplates/ArmTemplates.zip -d .
+    # Azure Login
+    - name: Azure Login
+      uses: azure/login@v1
+      continue-on-error: false
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    # Deploy ARM Template
+    - name: Deploy ARM Template
+      uses: azure/CLI@v1
+      continue-on-error: false
+      with:
+        inlineScript: |
+          az group create --name "${{ env.RESOURCEGROUPNAME }}" --location "${{ env.LOCATION }}"
+          az deployment group create --resource-group "${{ env.RESOURCEGROUPNAME }}" --template-file ./ArmTemplates/linux-python-webapp-template.json --parameters webAppName="${{ env.AZURE_WEBAPP_NAME }}" hostingPlanName="${{ env.HOSTINGPLANNAME }}" appInsightsLocation="${{ env.APPINSIGHTLOCATION }}" sku="${{ env.SKU }}"
+    # Deploy web app
+    - name: 'Deploy to Azure WebApp'
+      uses: azure/webapps-deploy@v2
+      with: 
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+
+  FunctionalTests:
+    name: Run Functional tests
+    runs-on: windows-latest
+    needs: Deploy
+    steps:
+    - uses: actions/checkout@v2
+    - name: Use Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    # Run functional tests
+    - name: Run Functional tests
+      continue-on-error: false
+      run: |
+        mkdir functionaltestresults
+        pip install wheel && pip install selenium && pip install pytest==4.6.11 && cd ./Tests && python -m pytest functional_tests/ --webAppUrl=https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/ --junitxml=../functionaltestresults/functional-test-results.xml
+    # Uploading functional test results to artifact store
+    - name: Upload functional test results to Artifact
+      continue-on-error: false
+      uses: actions/upload-artifact@v2
+      with:
+        name: FunctionalTestResults
+        path: ./functionaltestresults/functional-test-results.xml
