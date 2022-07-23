@@ -1,10 +1,8 @@
 <<<<<<< HEAD
 # CalculatorApp-In-Flask
-=======
+
 # We are learning to develop a claculator app
 
-## CalculatorApp-In-Flask
->>>>>>> dde40302e5eb6bc7231e19ce4d116bc60e1df821
 
 ### 💻 Tech Stack
 ### Front-End:
