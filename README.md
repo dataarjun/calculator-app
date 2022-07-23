@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # CalculatorApp-In-Flask
 
 # We are learning to develop a claculator app
