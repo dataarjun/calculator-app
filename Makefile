@@ -10,7 +10,7 @@ test:
 	#python -m pytest -vv --cov=myrepolib tests/*.py
 
 lint:
-	pylint --disable=C0321 main.py
+	pylint --disable=all main.py
 
 run:
 	python main.py
