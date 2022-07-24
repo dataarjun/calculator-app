@@ -23,7 +23,7 @@ class Contacts(db.Model):
 
 @app.route('/')
 def index():
-    flash('Welcome Hop you like this calculator app', 'success')
+    flash('Welcome Hope you like this calculator app', 'success')
     return render_template('calculator.html')
 
 @app.route('/about')
@@ -35,7 +35,7 @@ def connectTOMail():
     con.ehlo()
     print("hello sucessfull")
     con.starttls()
-    con.login("arpit456jain@gmail.com","#vanshika jain#")
+    con.login("abcd@gmail.com","#Indrajit Singh#")
     print("login succesfull")
     return con
 
