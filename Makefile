@@ -1,6 +1,6 @@
 setup:
 	python3 -m venv ~/.calculator-app
-	#source ~/.calculator-app/bin/activate
+	source ~/.calculator-app/bin/activate
 
 install:
 	pip install --upgrade pip &&\
