@@ -6,6 +6,8 @@ import json
 import smtplib
 import os
 from werkzeug.utils import secure_filename
+import numpy as np
+
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = "mysql+mysqldb://root:@localhost/codesmashersblog"
